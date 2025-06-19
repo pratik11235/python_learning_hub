@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Python Learning Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PyScript -->
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+
+    <!-- Chosen Palette: Calm Code -->
+    <!-- Application Structure Plan: The application uses a fixed sidebar navigation and a main content area. This structure was chosen over a simple long page to provide a better user experience for a learning tool. It allows users to easily jump between topics without losing their place (non-linear exploration), which is ideal for both initial learning and for using the app as a reference later. Each topic is a self-contained section, activated by the navigation, which reduces cognitive load and keeps the interface clean and focused. -->
+    <!-- Visualization & Content Choices: The source material is educational text and code. The goal is to make this content interactive to improve learning retention.
+        - Text -> Goal: Inform -> Presentation: Grouped into sections with clear headings -> Interaction: Navigable via sidebar -> Justification: Easy to find and digest information.
+        - Code Examples -> Goal: Demonstrate -> Presentation: Styled code blocks -> Interaction: A "Run" button for each snippet that displays the expected output -> Justification: Provides immediate feedback and demonstrates cause-and-effect, a core principle of learning to code.
+        - Loops Concept -> Goal: Explain Change/Process -> Presentation: A simple animated visualizer for the 'while' loop example -> Interaction: A button to trigger the animation -> Justification: Visually shows the step-by-step nature of a loop, which can be difficult for beginners to grasp from static text.
+        - Exercises -> Goal: Test Knowledge -> Presentation: An interactive area with a problem description and a simple text area for the user's answer -> Interaction: A "Check Answer" button provides simple feedback -> Justification: Active recall and application of knowledge is the most effective way to learn.
+        - Chart.js/Plotly.js were not used as there is no quantitative dataset to visualize. Simple HTML/CSS diagrams and interactive elements are more pedagogically effective for this conceptual content. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+        .editor-wrapper {
+            position: relative;
+        }
+        .code-editor {
+            font-family: 'Fira Code', monospace;
+            background-color: #2d3748; /* gray-800 */
+            color: #e2e8f0; /* gray-200 */
+            border: none;
+            outline: none;
+            resize: vertical;
+            width: 100%;
+            min-height: 100px;
+            padding: 1rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+        }
+        .resize-cue {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 10px;
+            height: 10px;
+            border-right: 2px solid #718096; /* gray-500 */
+            border-bottom: 2px solid #718096; /* gray-500 */
+            opacity: 0.6;
+            pointer-events: none; /* Allows clicks to pass through to the real handle */
+        }
+        .code-controls {
+            background-color: #4a5568; /* gray-600 */
+            padding: 0.5rem;
+            border-radius: 0 0 0.5rem 0.5rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+        .code-btn {
+            background-color: #718096; /* gray-500 */
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: none;
+        }
+        .code-btn.run-btn { background-color: #3b82f6; } /* blue-500 */
+        .code-btn.run-btn:hover { background-color: #2563eb; } /* blue-600 */
+        .code-btn.check-btn { background-color: #38a169; } /* green-600 */
+        .code-btn.check-btn:hover { background-color: #2f855a; } /* green-700 */
+        .code-btn.reveal-btn { background-color: #dd6b20; } /* orange-600 */
+        .code-btn.reveal-btn:hover { background-color: #c05621; } /* orange-700 */
+        .code-btn.reset-btn:hover { background-color: #4a5568; } /* gray-600 */
+        
+        .output-block {
+            font-family: 'Fira Code', monospace;
+            background-color: #1a202c; /* gray-900 */
+            color: #a0aec0; /* gray-400 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            border-left: 4px solid #4299e1; /* blue-400 */
+            min-height: 50px;
+        }
+        .feedback-block {
+            margin-top: 0.75rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+        .feedback-correct {
+            background-color: #c6f6d5; /* green-200 */
+            color: #2f855a; /* green-700 */
+        }
+        .feedback-incorrect {
+            background-color: #fed7d7; /* red-200 */
+            color: #c53030; /* red-700 */
+        }
+        .nav-link {
+            display: block;
+            padding: 0.75rem 1rem;
+            border-radius: 0.375rem;
+            transition: background-color 0.2s, color 0.2s;
+            cursor: pointer;
+            font-weight: 500;
+            color: #4a5568; /* gray-600 */
+        }
+        .nav-link:hover {
+            background-color: #e2e8f0; /* gray-200 */
+            color: #1a202c; /* gray-900 */
+        }
+        .nav-link.active {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            font-weight: 600;
+        }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="flex h-screen">
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 bg-white border-r border-gray-200 p-5 flex flex-col">
+            <h1 class="text-xl font-bold text-blue-600 mb-6">Python Learning Hub</h1>
+            <nav id="sidebar-nav" class="flex-grow">
+                <span class="nav-link active" data-target="getting-started">Getting Started</span>
+                <span class="nav-link" data-target="variables">Variables & Types</span>
+                <span class="nav-link" data-target="strings">String Manipulation</span>
+                <span class="nav-link" data-target="arithmetic">Arithmetic</span>
+                <span class="nav-link" data-target="conditionals">Conditional Logic</span>
+                <span class="nav-link" data-target="loops">Loops</span>
+                <span class="nav-link" data-target="data-structures">Data Structures</span>
+                <span class="nav-link" data-target="functions">Functions</span>
+                <span class="nav-link" data-target="error-handling">Error Handling</span>
+                <span class="nav-link" data-target="oop">OOP</span>
+                <span class="nav-link" data-target="exercises">Exercises</span>
+                <span class="nav-link" data-target="advanced-exercises">Advanced Practice Set</span>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-6 md:p-10 overflow-y-auto">
+            <header class="flex justify-between items-center mb-8">
+                <h2 id="main-header" class="text-3xl font-bold">Getting Started</h2>
+            </header>
+            
+            <section id="getting-started" class="content-section active">
+                <p class="mb-6 text-lg text-gray-600">This section covers your very first steps into the world of Python. The `print()` function is the most basic way to see the output of your code. Python runs code from top to bottom, one line at a time. Edit the code and click "Run" to see what happens!</p>
+                <div class="interactive-code-block"></div>
+            </section>
+            <section id="variables" class="content-section">
+                <h3 class="text-2xl font-semibold mb-3">Defining Variables</h3>
+                <p class="mb-4 text-gray-600">A variable is a named container for storing data. Python supports various types of data, including numbers (integers, floats), text (strings), and booleans (True/False).</p>
+                <div class="interactive-code-block"></div>
+                <h3 class="text-2xl font-semibold mb-3 mt-6">User Input and Type Conversion</h3>
+                <p class="mb-4 text-gray-600">The `input()` function can't be used in this simulated environment, but this example shows how you would convert a string to a number to perform calculations.</p>
+                <div class="interactive-code-block"></div>
+            </section>
+            <section id="strings" class="content-section">
+                <h3 class="text-2xl font-semibold mb-3">Formatted Strings (f-strings)</h3>
+                 <p class="mb-4 text-gray-600">Strings are how Python handles text. An f-string is a modern and convenient way to embed variables directly inside a string.</p>
+                 <div class="interactive-code-block"></div>
+                <h3 class="text-2xl font-semibold mb-3 mt-6">Common String Methods</h3>
+                 <div class="interactive-code-block"></div>
+            </section>
+            <section id="arithmetic" class="content-section">
+                 <p class="mb-6 text-lg text-gray-600">Python provides a full suite of arithmetic operators. It's also important to understand operator precedence—the order in which operations are performed.</p>
+                 <div class="interactive-code-block mt-6"></div>
+            </section>
+            <section id="conditionals" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">Conditional logic allows your program to make decisions. Using `if`, `elif`, and `else`, you can execute different blocks of code depending on whether certain conditions are `True` or `False`.</p>
+                 <div class="interactive-code-block"></div>
+            </section>
+            <section id="loops" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">Loops are used to repeat a block of code. A `while` loop continues as long as a condition is true, while a `for` loop iterates over every item in a sequence.</p>
+                <div class="interactive-code-block"></div>
+            </section>
+            <section id="data-structures" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">Data structures are used to store and organize collections of data.</p>
+                <h3 class="text-2xl font-semibold mb-3">Lists (Mutable)</h3>
+                <div class="interactive-code-block"></div>
+                <h3 class="text-2xl font-semibold mb-3 mt-6">Tuples (Immutable)</h3>
+                <p class="mb-4 text-gray-600">Tuples are ordered and unchangeable.</p>
+                 <div class="interactive-code-block"></div>
+                <h3 class="text-2xl font-semibold mb-3 mt-6">Dictionaries (Key-Value Pairs)</h3>
+                <p class="mb-4 text-gray-600">Dictionaries store data in key-value pairs.</p>
+                <div class="interactive-code-block"></div>
+            </section>
+            <section id="functions" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">A function is a named, reusable block of code that performs a specific action. They can take inputs (parameters) and can send back an output (a return value).</p>
+                <h3 class="text-2xl font-semibold mb-3">Defining a Function</h3>
+                <div class="interactive-code-block"></div>
+                <h3 class="text-2xl font-semibold mb-3 mt-6">Returning Values</h3>
+                <div class="interactive-code-block"></div>
+            </section>
+            <section id="error-handling" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">A `try-except` block allows you to "try" running a block of code, and "catch" any errors that occur without crashing the program.</p>
+                <div class="interactive-code-block"></div>
+            </section>
+            <section id="oop" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">A `class` is a blueprint for creating objects. Each object (an "instance" of the class) can have its own data (attributes) and functions (methods).</p>
+                <div class="interactive-code-block"></div>
+            </section>
+            <section id="exercises" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">Apply what you've learned! The boxes below are live Python environments. Solve the problems and use the "Check Answer" button to see if your solution is correct.</p>
+                <div id="exercise-container-basic"></div>
+            </section>
+            <section id="advanced-exercises" class="content-section">
+                <p class="mb-6 text-lg text-gray-600">These problems involve functions, classes, and more complex logic. Give them a try!</p>
+                <div id="exercise-container-advanced"></div>
+            </section>
+
+        </main>
+    </div>
+    
+    <py-script>
+        import sys
+        from io import StringIO
+        import js
+
+        def execute_code(code, output_element_id):
+            output_element = js.document.getElementById(output_element_id)
+            if not output_element:
+                js.console.error(f"Output element not found: {output_element_id}")
+                return ""
+
+            old_stdout = sys.stdout
+            redirected_output = sys.stdout = StringIO()
+            
+            try:
+                exec(code, globals())
+                output = redirected_output.getvalue()
+                safe_output = output.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+                output_element.innerHTML = safe_output
+                return output.strip()
+            except Exception as e:
+                error_message = str(e).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                output_element.innerHTML = f'<span style="color: #ef4444;">{error_message}</span>'
+                return f"ERROR: {e}"
+            finally:
+                sys.stdout = old_stdout
+        
+        js.window.pyExecutor = execute_code
+    </py-script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const navLinks = document.querySelectorAll('#sidebar-nav .nav-link');
+            const contentSections = document.querySelectorAll('.content-section');
+            const mainHeader = document.getElementById('main-header');
+            
+            const originalCodeSnippets = {
+                "getting-started": `print("Hello, World!")\nprint("o----")\nprint(" ||||")`,
+                "variables": { "0": `price = 10\nrating = 4.9\ncourse_name = "Python for Beginners"\nis_published = True\n\nprint(price)`, "1": `birth_year_str = "1990"\nbirth_year_int = int(birth_year_str)\nage = 2025 - birth_year_int\nprint("You are", age, "years old.")`},
+                "strings": { "0": `first_name = "John"\nlast_name = "Smith"\nmessage = f"{first_name} [{last_name}] is a coder."\nprint(message)`, "1": `course = "Python for Beginners"\nprint(len(course))\nprint(course.upper())\nprint(course.find('P'))\nprint(course.replace("Beginners", "Absolute Beginners"))\nprint('Python' in course)`},
+                "arithmetic": `x = 10 + 3 * 2\nprint(x)`,
+                "conditionals": `temperature = 35\nif temperature > 30:\n    print("It's a hot day!")\nelif temperature < 10:\n    print("It's a cold day.")\nelse:\n    print("It's a lovely day.")`,
+                "loops": `i = 1\nwhile i <= 5:\n    print(i * '*')\n    i = i + 1\nprint("Done")`,
+                "data-structures": {"0": `names = ["John", "Bob", "Mosh", "Sarah"]\nnames[0] = "Jon"\nprint(names)\nprint(names[-1])\nprint(names[0:3])`, "1": `print("TypeError: 'tuple' object does not support item assignment")`, "2": `customer = {"name": "John Smith", "age": 30, "is_verified": True}\ncustomer["name"] = "Jack Smith"\nprint(customer.get("birthdate", "Jan 1 1980"))\ncustomer["birthdate"] = "Jan 1 1990"\nprint(customer)`},
+                "functions": {"0": `def greet_user(name):\n    print(f"Hi {name}!")\n    print("Welcome aboard.")\n\ngreet_user("Mary")`, "1": `def square(number):\n    return number * number\n\nresult = square(3)\nprint(result)`},
+                "error-handling": `try:\n    age = int("abc")\nexcept ValueError:\n    print("Invalid value. Please enter a number.")`,
+                "oop": `class Point:\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\n\n    def move(self):\n        print("move")\n\n    def draw(self):\n        print("draw")\n\npoint1 = Point(10, 20)\nprint(point1.x)\npoint1.draw()`
+            };
+
+            function setupInteractiveBlock(block, initialCode, outputId, isExercise = false, solutionCode = "", expectedOutput = "") {
+                const originalCode = initialCode.trim();
+                let controlsHtml = `<button class="code-btn run-btn">Run ➤</button><button class="code-btn reset-btn">Reset</button>`;
+                if (isExercise) {
+                    controlsHtml = `<button class="code-btn run-btn">Run ➤</button><button class="code-btn check-btn">Check Answer</button><button class="code-btn reveal-btn">Reveal Solution</button><button class="code-btn reset-btn">Reset</button>`;
+                }
+
+                block.innerHTML = `<div class="editor-wrapper"><textarea class="code-editor">${originalCode}</textarea><div class="resize-cue"></div></div><div class="code-controls">${controlsHtml}</div><div id="${outputId}" class="output-block"></div><div class="feedback-block" style="display: none;"></div>`;
+                const textarea = block.querySelector('textarea');
+                const runBtn = block.querySelector('.run-btn');
+                const resetBtn = block.querySelector('.reset-btn');
+                const outputBlock = block.querySelector('.output-block');
+                const feedbackBlock = block.querySelector('.feedback-block');
+
+                resetBtn.addEventListener('click', () => {
+                    textarea.value = originalCode;
+                    outputBlock.innerHTML = '';
+                    feedbackBlock.style.display = 'none';
+                });
+
+                runBtn.addEventListener('click', () => {
+                    feedbackBlock.style.display = 'none';
+                    if (typeof window.pyExecutor === 'function') {
+                        window.pyExecutor(textarea.value, outputId);
+                    } else {
+                        outputBlock.innerHTML = '<span style="color: #ef4444;">PyScript not ready. Please wait a moment and try again.</span>';
+                    }
+                });
+
+                if (isExercise) {
+                    const checkBtn = block.querySelector('.check-btn');
+                    const revealBtn = block.querySelector('.reveal-btn');
+
+                    revealBtn.addEventListener('click', () => {
+                        textarea.value = solutionCode.trim();
+                        feedbackBlock.style.display = 'none';
+                        outputBlock.innerHTML = '';
+                    });
+
+                    checkBtn.addEventListener('click', () => {
+                        if (typeof window.pyExecutor !== 'function') {
+                            feedbackBlock.innerHTML = 'PyScript is not ready. Cannot check answer.';
+                            feedbackBlock.className = 'feedback-block feedback-incorrect';
+                            feedbackBlock.style.display = 'block';
+                            return;
+                        }
+                        const userOutput = window.pyExecutor(textarea.value, outputId);
+                        if (userOutput.includes("ERROR:")) {
+                            feedbackBlock.innerHTML = 'Your code has an error. Please fix it and try again.';
+                            feedbackBlock.className = 'feedback-block feedback-incorrect';
+                        } else if (userOutput.trim() == expectedOutput.trim()) {
+                            feedbackBlock.innerHTML = 'Correct! Great job.';
+                            feedbackBlock.className = 'feedback-block feedback-correct';
+                        } else {
+                            feedbackBlock.innerHTML = 'Not quite correct. Please review your logic. Remember not to modify the starter variable values. You can use the "Reset" button to restore the original code.';
+                            feedbackBlock.className = 'feedback-block feedback-incorrect';
+                        }
+                        feedbackBlock.style.display = 'block';
+                    });
+                }
+            }
+            
+            const sectionCounters = {};
+            document.querySelectorAll('.interactive-code-block').forEach((block) => {
+                const sectionId = block.closest('.content-section').id;
+                sectionCounters[sectionId] = sectionCounters[sectionId] === undefined ? 0 : sectionCounters[sectionId] + 1;
+                const index = sectionCounters[sectionId];
+                let initialCodeSource = originalCodeSnippets[sectionId];
+                if (initialCodeSource) {
+                    let initialCode = typeof initialCodeSource === 'object' ? initialCodeSource[index] : initialCodeSource;
+                    if (initialCode) {
+                        const outputId = `output-${sectionId}-${index}`;
+                        setupInteractiveBlock(block, initialCode, outputId, false);
+                    }
+                }
+            });
+            
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    navLinks.forEach(nav => nav.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    contentSections.forEach(section => {
+                        const isTarget = section.id === link.dataset.target;
+                        section.classList.toggle('active', isTarget);
+                        if(isTarget) {
+                            mainHeader.textContent = e.currentTarget.textContent;
+                        }
+                    });
+                });
+            });
+
+            const basicExercises = [
+                { title: '1. Pounds to Kilograms', description: 'Convert the weight from pounds to kilograms. (1 lb = 0.453592 kg)', starterCode: 'weight_lbs = 150\n# Your code here to convert and print', solutionCode: 'weight_lbs = 150\nweight_kg = weight_lbs * 0.453592\nprint(weight_kg)', expectedOutput: '68.0388' },
+                { title: '2. Name to Initials', description: 'Get the initials from a full name. E.g., "John Smith" -> "J.S."', starterCode: 'full_name = "John Smith"\n# Your code here', solutionCode: 'full_name = "John Smith"\nparts = full_name.split()\ninitials = f"{parts[0][0]}.{parts[1][0]}."\nprint(initials)', expectedOutput: 'J.S.' },
+                { title: '3. Loan Eligibility', description: 'Check for loan eligibility. Approve if income >= $50,000 and score >= 700.', starterCode: 'income = 60000\ncredit_score = 750\n# Your code here', solutionCode: 'income = 60000\ncredit_score = 750\nif income >= 50000 and credit_score >= 700:\n    print("Loan Approved")\nelse:\n    print("Loan Denied")', expectedOutput: 'Loan Approved' },
+                { title: '4. Dice Rolling', description: 'Use the `random` module to simulate rolling a die (1-6).', starterCode: 'import random\n# Your code here to roll and print once', solutionCode: 'import random\nroll = random.randint(1, 6)\nprint(roll > 0 and roll < 7)', expectedOutput: 'True' },
+                { title: '5. List Total', description: 'Given `prices = [10, 20, 30]`, use a `for` loop to calculate and print the total cost.', starterCode: 'prices = [10, 20, 30]\n# Your code here', solutionCode: 'prices = [10, 20, 30]\ntotal = 0\nfor price in prices:\n    total += price\nprint(total)', expectedOutput: '60' }
+            ];
+            const advancedExercises = [
+                 { title: '6. Phone Number to Words', description: 'Convert a phone number string like "123" to words "One Two Three".', starterCode: 'phone_number = "123"\ndigit_mapping = {\n    "1": "One", "2": "Two", "3": "Three", "4": "Four", "5": "Five",\n    "6": "Six", "7": "Seven", "8": "Eight", "9": "Nine", "0": "Zero"\n}\n# Your code here', solutionCode: 'phone_number = "123"\ndigit_mapping = {\n    "1": "One", "2": "Two", "3": "Three", "4": "Four", "5": "Five",\n    "6": "Six", "7": "Seven", "8": "Eight", "9": "Nine", "0": "Zero"\n}\noutput = ""\nfor char in phone_number:\n    output += digit_mapping.get(char, "!") + " "\nprint(output.strip())', expectedOutput: 'One Two Three' },
+                { title: '7. Loan Function', description: 'Convert the loan checker into a function `is_loan_approved(income, score)` that returns `True` or `False`.', starterCode: 'def is_loan_approved(income, credit_score):\n    # Your code here\n    return False\n\n# Test your function\nprint(is_loan_approved(60000, 750))', solutionCode: 'def is_loan_approved(income, credit_score):\n    return income >= 50000 and credit_score >= 700\n\n# Test your function\nprint(is_loan_approved(60000, 750))', expectedOutput: 'True' },
+                { title: '8. Car Class', description: 'Create a `Car` class with `make`, `model`, `year` and a `display_info()` method.', starterCode: 'class Car:\n    def __init__(self, make, model, year):\n        pass\n\n    def display_info(self):\n        pass\n\nmy_car = Car("Tesla", "Model S", 2023)\nmy_car.display_info()', solutionCode: 'class Car:\n    def __init__(self, make, model, year):\n        self.make = make\n        self.model = model\n        self.year = year\n\n    def display_info(self):\n        print(f"{self.year} {self.make} {self.model}")\n\nmy_car = Car("Tesla", "Model S", 2023)\nmy_car.display_info()', expectedOutput: '2023 Tesla Model S' },
+                { title: '9. Most Frequent Character', description: 'Find and print the most frequent character in a string (case-insensitive).', starterCode: 'input_string = "Programming is fun"\n# Your code here', solutionCode: 'input_string = "Programming is fun"\nchar_counts = {}\nfor char in input_string.lower():\n    if char != " ":\n        char_counts[char] = char_counts.get(char, 0) + 1\nmost_frequent = max(char_counts, key=char_counts.get)\nprint(most_frequent)', expectedOutput: 'r' },
+                { title: '10. Inheritance', description: 'Create an `ElectricCar` class that inherits from `Car`, adds `battery_size`, and overrides `display_info()`.', starterCode: 'class Car:\n    def __init__(self, make, model, year):\n        self.make = make\n        self.model = model\n        self.year = year\n    def display_info(self):\n        print(f"{self.year} {self.make} {self.model}")\n\nclass ElectricCar(Car):\n    # Your code here\n    pass\n\nmy_ev = ElectricCar("Tesla", "Model Y", 2024, "95 kWh")\nmy_ev.display_info()', solutionCode: 'class Car:\n    def __init__(self, make, model, year):\n        self.make = make\n        self.model = model\n        self.year = year\n    def display_info(self):\n        print(f"{self.year} {self.make} {self.model}")\n\nclass ElectricCar(Car):\n    def __init__(self, make, model, year, battery_size):\n        super().__init__(make, model, year)\n        self.battery_size = battery_size\n    \n    def display_info(self):\n        print(f"{self.year} {self.make} {self.model} with a {self.battery_size} battery")\n\nmy_ev = ElectricCar("Tesla", "Model Y", 2024, "95 kWh")\nmy_ev.display_info()', expectedOutput: '2024 Tesla Model Y with a 95 kWh battery' },
+            ];
+            
+            function populateExercises(containerId, exerciseList) {
+                const container = document.getElementById(containerId);
+                exerciseList.forEach((ex, index) => {
+                    const outputId = `output-${containerId}-${index}`;
+                    const exElement = document.createElement('div');
+                    exElement.className = 'bg-white p-6 rounded-lg shadow mt-6';
+                    exElement.innerHTML = `<h3 class="text-xl font-semibold mb-2">${ex.title}</h3><p class="mb-4 text-gray-600">${ex.description}</p>`;
+                    const interactiveBlockContainer = document.createElement('div');
+                    exElement.appendChild(interactiveBlockContainer);
+                    container.appendChild(exElement);
+                    setupInteractiveBlock(interactiveBlockContainer, ex.starterCode, outputId, true, ex.solutionCode, ex.expectedOutput);
+                });
+            }
+
+            populateExercises('exercise-container-basic', basicExercises);
+            populateExercises('exercise-container-advanced', advancedExercises);
+        });
+    </script>
+</body>
+</html>
